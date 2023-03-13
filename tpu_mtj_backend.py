@@ -47,7 +47,7 @@ from jax.experimental import maps
 import jax.numpy as jnp
 import numpy as np
 import haiku as hk
-from transformers import AutoTokenizer, GPT2Tokenizer, AutoModelForCausalLM, GPTNeoForCausalLM
+from transformers import AutoTokenizer, GPT2Tokenizer, AutoModelForCausalLM, GPTNeoForCausalLM, LLaMAForCausalLM, LLaMATokenizer
 from tokenizers import Tokenizer
 from mesh_transformer.checkpoint import read_ckpt_lowmem
 from mesh_transformer.transformer_shard import CausalTransformer, CausalTransformerShard, PlaceholderTensor
@@ -1439,7 +1439,8 @@ def load_model(path: str, driver_version="tpu_driver0.1_dev20210607", hf_checkpo
                             # with zeros.
                             if mk == "causal_transformer_shard/~/embedding_shard/~/linear" and pk == "b":
                                 mv[pk] = move_xmap(jnp.zeros(mv[pk].shape, dtype=jnp.bfloat16), np.empty(params["cores_per_replica"]))
-
+                            elif "llama" in koboldai_vars.model and pk == "offset" and "replicated_layer_norm" in mk:
+                                mv[pk] = move_xmap(jnp.zeros(mv[pk].shape, dtype=jnp.bfloat16), np.empty(params["cores_per_replica"]))
                             else:
                                 error = f"{mk} {pk} could not be found in the model checkpoint"
                                 print("\n\nERROR:  " + error, file=sys.stderr)
@@ -1476,19 +1477,21 @@ def load_model(path: str, driver_version="tpu_driver0.1_dev20210607", hf_checkpo
                 model     = GPTNeoForCausalLM.from_pretrained(koboldai_vars.custmodpth, revision=koboldai_vars.revision, cache_dir="cache")
         elif(os.path.isdir("models/{}".format(koboldai_vars.model.replace('/', '_')))):
             try:
-                tokenizer = AutoTokenizer.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache", use_fast=False)
+                
+                tokenizer_path = "models/{}".format(koboldai_vars.model.replace('/', '_'))
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, revision=koboldai_vars.revision, cache_dir="cache", use_fast=False)
             except Exception as e:
                 try:
                     tokenizer = AutoTokenizer.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
                 except Exception as e:
                     try:
-                        tokenizer = GPT2Tokenizer.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
+                        tokenizer = LLaMATokenizer.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
                     except Exception as e:
-                        tokenizer = GPT2Tokenizer.from_pretrained("gpt2", revision=koboldai_vars.revision, cache_dir="cache")
+                        tokenizer = LLaMATokenizer.from_pretrained("llama", revision=koboldai_vars.revision, cache_dir="cache")
             try:
                 model     = AutoModelForCausalLM.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
             except Exception as e:
-                model     = GPTNeoForCausalLM.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
+                model     = LLaMAForCausalLM.from_pretrained("models/{}".format(koboldai_vars.model.replace('/', '_')), revision=koboldai_vars.revision, cache_dir="cache")
         else:
             try:
                 tokenizer = AutoTokenizer.from_pretrained(koboldai_vars.model, revision=koboldai_vars.revision, cache_dir="cache", use_fast=False)

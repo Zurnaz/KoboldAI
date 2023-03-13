@@ -8,7 +8,8 @@ jaxlib >= 0.1.69, <= 0.3.7
 transformers == 4.25.1
 huggingface_hub==0.12.1
 progressbar2
-git+https://github.com/VE-FORBRYDERNE/mesh-transformer-jax@ck
+sentencepiece
+git+https://github.com/Zurnaz/mesh-transformer-jax.git@llama_tpu
 flask
 Flask-SocketIO
 flask-cloudflared==0.0.10
